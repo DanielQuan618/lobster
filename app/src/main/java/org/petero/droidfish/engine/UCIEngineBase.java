@@ -58,9 +58,16 @@ public abstract class UCIEngineBase implements UCIEngine {
     @Override
     public final void initialize() {
         if (!processAlive) {
-            startProcess();
+            // 先置 true 再启动：startProcess 失败时由子类调用 markProcessStartFailed() 复位，
+            // 这样下一次 initialize() 仍然可以重试，而不是永远认为进程还活着
             processAlive = true;
+            startProcess();
         }
+    }
+
+    /** 子类在进程启动失败时调用，复位存活标记以便重试。 */
+    protected final void markProcessStartFailed() {
+        processAlive = false;
     }
 
     @Override

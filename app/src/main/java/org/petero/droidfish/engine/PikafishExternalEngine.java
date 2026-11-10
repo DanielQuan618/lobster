@@ -20,8 +20,8 @@ package org.petero.droidfish.engine;
 
 import android.util.Log;
 
-import com.xqdk.chess.BuildConfig;
-import com.xqdk.chess.ChessApp;
+import io.github.danielquan618.lobster.BuildConfig;
+import io.github.danielquan618.lobster.ChessApp;
 
 import org.petero.droidfish.player.EngineListener;
 

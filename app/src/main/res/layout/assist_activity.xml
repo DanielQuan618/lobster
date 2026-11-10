@@ -21,7 +21,7 @@
         android:paddingBottom="28dp">
 
         <!-- 识别点阵：语义仪器面（待机墨恒静/识别中琥珀逐点/等待琥珀/异常警示红） -->
-        <com.xqdk.chess.assist.ui.AssistDotGridView
+        <io.github.danielquan618.lobster.assist.ui.AssistDotGridView
             android:id="@+id/dot_grid"
             android:layout_width="match_parent"
             android:layout_height="52dp"
@@ -68,7 +68,7 @@
             android:textStyle="bold" />
 
         <!-- 河界线：1.5dp 朱砂，运行态进入"线的呼吸"（2.4s） -->
-        <com.xqdk.chess.assist.ui.RiverLineView
+        <io.github.danielquan618.lobster.assist.ui.RiverLineView
             android:id="@+id/river_line"
             android:layout_width="match_parent"
             android:layout_height="1.5dp"
@@ -440,7 +440,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="28dp"
             android:lineSpacingExtra="2dp"
-            android:text="合规声明：本功能仅通过系统录屏授权做画面识别并显示走法建议，属于象棋学习辅助工具，仅供学习研究，请于获取后24小时内自行删除。不包含自动走子、触摸注入、无障碍服务、Root/Xposed 或读取其他应用数据；对局中的所有着法均由玩家手动操作。"
+            android:text="合规声明：本功能仅通过系统录屏授权做画面识别并显示走法建议，属于象棋学习辅助工具，仅供学习研究。不包含自动走子、触摸注入、无障碍服务、Root/Xposed 或读取其他应用数据；对局中的所有着法均由玩家手动操作。"
             android:textColor="@color/xq_muted"
             android:textSize="11sp"
             tools:ignore="HardcodedText" />

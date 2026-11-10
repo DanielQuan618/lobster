@@ -1,15 +1,16 @@
-# 象棋迪克 XQDK -- 开源免费的安卓版中国象棋学习工具
+# lobster（虾搞）-- 开源免费的安卓版中国象棋学习辅助工具
 
-[![Build-XQDK](https://github.com/Silva6c/chess-dike/actions/workflows/android.yml/badge.svg)](https://github.com/Silva6c/chess-dike/actions/workflows/android.yml)
-[![CodeQL](https://github.com/Silva6c/chess-dike/actions/workflows/codeql.yml/badge.svg)](https://github.com/Silva6c/chess-dike/actions/workflows/codeql.yml)
-[![Release](https://img.shields.io/github/v/release/Silva6c/chess-dike)](https://github.com/Silva6c/chess-dike/releases/latest)
+[![Build-Lobster](https://github.com/DanielQuan618/lobster/actions/workflows/android.yml/badge.svg)](https://github.com/DanielQuan618/lobster/actions/workflows/android.yml)
+[![CodeQL](https://github.com/DanielQuan618/lobster/actions/workflows/codeql.yml/badge.svg)](https://github.com/DanielQuan618/lobster/actions/workflows/codeql.yml)
+[![Release](https://img.shields.io/github/v/release/DanielQuan618/lobster)](https://github.com/DanielQuan618/lobster/releases/latest)
 [![License: GPL v3](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 ![Platform](https://img.shields.io/badge/Android-8.0%2B%20(API%2026)-green)
 
 ## 介绍
 
-象棋迪克是一个开源免费的安卓版中国象棋学习工具：聚焦"连线"功能——识别其他象棋 App
-的棋盘画面（ONNX 角点式 / YOLO 双引擎），在悬浮窗实时给出皮卡鱼引擎与桔库开局库的走法建议。
+lobster（中文名**虾搞**）是一个开源免费的安卓版中国象棋学习辅助工具：聚焦"连线"功能——
+识别其他象棋 App 的棋盘画面（ONNX 角点式 / YOLO 双引擎），在悬浮窗实时给出皮卡鱼引擎
+与桔库开局库的走法建议。
 
 打开应用即达连线页：默认"靠近玩家的一侧（屏幕下方）＝我方"，自动判定我方执红还是执黑
 （含换边局），**只为我方给出指导**；识别为只读，所有着法由玩家手动完成。连线页内置
@@ -19,51 +20,48 @@
 （不自动检查、不内置下载，仅查询 GitHub 正式版提示）。使用说明与原理见
 [docs/assist-helper.md](docs/assist-helper.md)，架构与实现见 [docs/技术报告.md](docs/技术报告.md)。
 
-**免责声明**：本软件（象棋迪克）为象棋学习辅助工具，仅供个人学习、复盘研究与技术交流使用。
+**免责声明**：本软件（虾搞 / lobster）为象棋学习辅助工具，仅供个人学习、复盘研究与技术交流使用。
 仅通过系统录屏授权识别画面并以悬浮窗显示走法建议，不包含自动走子、触摸注入、无障碍服务等功能；
 **严禁用于任何正式比赛、等级分对局、网络对局平台或赌博等违反平台规则与法律法规的场景**。
 设计边界与自行验证方法见 [DESIGN_BOUNDARIES.md](DESIGN_BOUNDARIES.md)；
 应用内免责声明全文以首启弹窗为准。
 
-## 版本安全线：自 v3.2 起（2026-10-31 密钥轮换）
+## 上游来源与 fork 说明（重要）
 
-**自 v3.2 起，本项目的发布包进入安全版本线**：每一个 Release 包都由轮换后的
-全新 4096 位签名密钥构建签名（该密钥不公开、仅存于发布流水线的加密存储），
-并经发布流水线指纹门禁核验——**证书不符的构建根本进不了 Release 页**。
-请认准 **v3.2 及之后的版本**；指纹可用 `apksigner verify --print-certs` 自行
-核对（见[下方核验节](#官方获取渠道与签名核验)）。
+本项目是 **[Silva6c/chess-dike](https://github.com/Silva6c/chess-dike)**（GPL-3.0）的
+二次开发 fork，代码对齐上游 **v3.3 稳定版**（2026-11-02）；上游项目名与本 fork 的
+品牌无关，本 fork 以自己的名义独立发布。上游项目及其作者的著作权依 GPL-3.0 保留，
+第三方组件的版权与许可义务见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。
 
-相对地，**v3.1 及更早的版本不在此安全线内**：其签名密钥（连同密码）曾随上游
-仓库历史公开，任何人可伪造出同指纹的恶意包。由此请注意：
+**签名与发布说明（fork 差异）**：
 
-- **旧证书一律作废**——此后请勿安装任何旧证书签名的安装包（哪怕自称"新版"）；
-- **从旧版本升级到 v3.2 需先卸载再安装**（仅此一次，之后恢复正常的覆盖升级）。
+- 上游自 v3.2 起轮换了发布签名密钥并进入"安全版本线"，其官方签名证书指纹仅适用于
+  **上游官方 Release**；**本 fork 的构建不使用、也无法伪造上游证书**，请勿用上游指纹核验本 fork 的安装包。
+- 本仓库**不包含任何签名密钥**（`*.jks` 已在 `.gitignore` 排除）。从源码构建时，
+  若 `local.properties` 未配置 `CCHES_STORE_PWD` / `CCHES_KEY_PWD`，release 构建
+  自动回退 debug 签名以便直接出包；如你以自己身份发布，请替换为自有 keystore。
+- 本 fork 的应用内"检查更新"只查询本仓（DanielQuan618/lobster）的 Releases 元数据，
+  不检查上游版本。
 
-v3.2 同时完成一轮全面安全加固：
+## 版权与许可
 
-1. **应用内不存在"下载安装"路径**："检查更新"只查询 GitHub Releases 元数据并跳转
-   官方下载页，下载与安装完全由你在官方渠道完成——应用内没有可被中间人替换包体的通道。
-2. **权限与数据最小化**：仅录屏 / 悬浮窗 / 通知 / 网络四类权限；识别、引擎、开局库
-   全部本地运行；无自动走子、无触摸注入、无无障碍服务；云备份已关闭。
-3. **构建链持续加固**：CI 第三方组件全部锁定 commit 哈希、Gradle 发行包带官方校验和、
-   依赖固定版本、CodeQL 每周自动代码扫描（见页面顶部 badge）。
+- **本 fork 的修改部分**：Copyright (C) 2026 DanielQuan618，以 GPL-3.0 发布。
+- **上游项目 chess-dike**：Copyright (C) Silva6c 及其贡献者；本 fork 依 GPL-3.0
+  使用其代码二次开发，原项目的著作权与许可声明依原样保留。上游品牌名不在本 fork
+  中作为本项目品牌使用。
+- **第三方组件与版权物**：来源与许可义务见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)；
+  完整许可条款见 [LICENSE](LICENSE)。对外分发 APK 时请遵守 GPL-3.0 的源码提供义务。
 
-## 推荐项目：内阁 Cabinet（同作者的另一条路线，重度使用首选）
+## 相关项目：内阁 Cabinet（上游原作者的姊妹项目）
 
-如果你喜欢本项目的"连线"功能，同作者的 **[内阁 Cabinet](https://github.com/Silva6c/cabinet)**
-值得认真一试——"手机做眼睛，电脑做脑子"：手机端录屏识别棋盘、悬浮窗展示建议，
-皮卡鱼引擎与开局库放在电脑端，经 WSS（局域网 / Tailscale 组网）实时分析，
-从 [内阁 Releases](https://github.com/Silva6c/cabinet/releases) 获取。
+如果你喜欢本项目的"连线"功能，上游原作者的另一条路线
+**[内阁 Cabinet](https://github.com/Silva6c/cabinet)** 值得认真一试——"手机做眼睛，
+电脑做脑子"：手机端录屏识别棋盘、悬浮窗展示建议，皮卡鱼引擎与开局库放在电脑端，
+经 WSS（局域网 / Tailscale 组网）实时分析。两个项目遵循同样的只读合规底线
+（无自动走子、无触摸注入、无无障碍服务）与开源免费原则——**随手练棋用本项目，
+深度复盘与长时间使用用内阁**。
 
-**为什么重度使用选它**：本项目全离线单机、装上就用，但识别与引擎挤在同一颗手机 CPU
-上——长时间连线会发热降频（见下方警告）。内阁把 NNUE 搜索搬到电脑：Hash 可开到
-GB 级、线程全给、开局库命中秒回，手机只做采集与显示**几乎不发热**，信息也更丰富
-（胜率 / WDL / 多路 PV / 深度 / 节点数，算力参数悬浮窗直调）。电脑到手机的通信本身
-也按高标准设计：WSS 加密 + 自签证书指纹锁定 + 配对令牌仅存哈希、可吊销。两个项目
-出自同一作者，遵循同样的只读合规底线（无自动走子、无触摸注入、无无障碍服务）与
-开源免费原则——**随手练棋用本项目，深度复盘与长时间使用用内阁**。
-
-| | 象棋迪克（本项目） | 内阁 Cabinet |
+| | lobster（本项目） | 内阁 Cabinet |
 |---|---|---|
 | 架构 | **全离线单机**：识别、引擎、开局库全在手机，零外部依赖 | **双端协作**：手机识别 + 悬浮窗，电脑跑引擎与开局库，WSS 通信（局域网 / Tailscale） |
 | 算力 | 受手机 SoC 封顶：神经网络推理与 NNUE 搜索抢同一颗 CPU | 吃满电脑算力：Hash 可开到 GB 级、线程全给，开局库命中秒回 |
@@ -91,8 +89,10 @@ GB 级、线程全给、开局库命中秒回，手机只做采集与显示**几
 
 ## 鸣谢
 
+- 上游项目 **chess-dike**（作者 Silva6c，[GitHub](https://github.com/Silva6c/chess-dike)）——
+  本项目在其基础上二次开发（GPL-3.0），代码对齐其 v3.3 稳定版；
 - 原项目"象棋鱼"（作者 zfdang，[GitHub](https://github.com/zfdang/chinese-chess-android)）——
-  本项目在其基础上二次开发；
+  上游项目曾在其基础上二次开发（对弈/打谱功能已在上游 v3.0 裁撤，仅存历史渊源）；
 - [Vincentzyx/VinXiangQi](https://github.com/Vincentzyx/VinXiangQi) —— YOLO 棋子检测权重文件来源（GPL-3.0）；
 - [yolo12138/Chinese_Chess_Recognition](https://huggingface.co/spaces/yolo12138/Chinese_Chess_Recognition) ——
   ONNX 两步式识别引擎（RTMPose 角点 + Swin 分类）的模型与算法来源；
@@ -122,43 +122,37 @@ GB 级、线程全给、开局库命中秒回，手机只做采集与显示**几
 | Pikafish 引擎（`libpikafish-armv8.so` / `-dotprod.so`，GPL-3.0） | ✅ 分发 | ✅ 内置 | `app/src/main/pikafish/arm64-v8a/` |
 | Pikafish NNUE 权重（`libpikafish.nnue.so`，GPL-3.0） | ✅ 分发 | ✅ 内置 | 同上，约 45MB |
 | YOLO 棋子检测模型（`assets/yolov5n_xq_fp16.tflite`） | ✅ 分发 | ✅ 内置 | 权重来自 VinXiangQi |
-| **ONNX 识别模型**（`assets/models/*.onnx`，共约 21.5MB） | ❌ `.gitignore` 排除 | 需自行放置 | 两步式识别引擎（RTMPose 角点 + Swin 分类，模型来自 Hugging Face Chinese_Chess_Recognition）；未放置时自动回退 YOLO，见 `assets/models/README.md` |
+| **ONNX 识别模型**（`assets/models/*.onnx`，共约 21.5MB） | ❌ `.gitignore` 排除 | 需自行放置 | 两步式识别引擎（RTMPose 角点 + Swin 分类，模型来自 Hugging Face Chinese_Chess_Recognition）；**未放置时应用自动回退 YOLO，连线页 ONNX 选项自动禁用**，见 `assets/models/README.md` |
 | **桔库开局库**（`assets/databases/*.obk.zip`） | ❌ `.gitignore` 排除 | 需自行获取放置 | 第三方版权内容不入 git；**缺失时连线自动降级为纯引擎模式**，不影响使用 |
 
-**签名**：release 构建优先使用 `app/cchess.release.2026.jks`（密钥文件与密码
-`CCHES_STORE_PWD` / `CCHES_KEY_PWD` 均自本地 `local.properties` 读取，**不随仓库
-分发**；CI 经仓库 Secrets 注入同钥真签）；密钥或密码缺失时（全新克隆 / 未配置
-Secrets 的 CI）自动回退 debug 签名保证可构建——v* tag 构建另有证书指纹
-门禁，debug 签名包不会进入官方 Release。
-如需以你自己的身份发布，请替换为自有 keystore。
+**签名**：本仓库不分发签名密钥。release 构建优先读取 `local.properties` 中的
+`CCHES_STORE_PWD` / `CCHES_KEY_PWD` 与本地 keystore（默认文件名
+`app/cchess.release.2026.jks`，自行放置，不入库）；任一缺失时自动回退 debug
+签名保证可构建。CI 如配置了仓库 Secrets（`ANDROID_KEYSTORE_B64` /
+`ANDROID_STORE_PWD` / `ANDROID_KEY_PWD`）则使用注入的同钥真签，未配置则为
+debug 签名。
 
-**CI 自动出包**：推送 `v*` 语义化版本 tag（如 `v3.2`）自动触发构建（单元测试 +
-双 flavor 出包），版权物由构建时从本仓 `assets` 预发布 Release 拉取注入并挂到
-同名 Release；旧制 `stable-*` 日期 tag 已于 2026-10-31 废弃，历史 tag 不再触发
-构建。本地构建则按上表自行放置大文件。
+**CI 自动出包**：推送 `v*` 语义化版本 tag（如 `v3.3.0`）可触发构建
+（单元测试 + 双 flavor 出包）。版权物由构建时从本仓 `assets` 预发布 Release
+拉取注入（可选；本 fork 未内置版权物时自动跳过并回退对应功能）；本 fork 的
+签名指纹门禁仅在检测到注入密钥时生效，debug 签名包不会进入正式 Release。
+本地构建则按上表自行放置大文件。
 
-## 官方获取渠道与签名核验
+## 获取渠道与签名核验
 
-- 本项目**唯一官方发布渠道**：[github.com/Silva6c/chess-dike 的 Releases](https://github.com/Silva6c/chess-dike/releases)，
-  请只从该渠道获取更新。发布流水线内置签名指纹门禁：证书不符的构建无法进入
-  Release 页（2026-10-31 起）。
-- **签名密钥已于 2026-10-31 轮换**：旧签名密钥曾连同密码一起留在公开 git 历史
-  中（任何人可复原其签名能力），已作废停用。由此请注意：
-  - **v3.1 及更早的旧签名包一律不要信任**——旧证书指纹 `f4dbd2…72dee` 仅作历史
-    记录（historical），攻击者可伪造出同指纹的恶意包；
-  - 从旧版本升级到新签名版本需**先卸载再安装**（仅此一次，之后恢复覆盖升级）。
-- **v3.2 及之后所有发布包**的签名证书 SHA-256 指纹（`apksigner verify --print-certs <apk>` 可核验）：
-
-  ```
-  9ca440393471915a0e6983c53db714133f36f7d327cb487b8a82451d6427721d
-  ```
+- 本 fork 的发布渠道：[github.com/DanielQuan618/lobster 的 Releases](https://github.com/DanielQuan618/lobster/releases)；
+  上游原项目：[github.com/Silva6c/chess-dike](https://github.com/Silva6c/chess-dike)。
+- **请勿混用两边的安装包与证书**：上游官方 Release 由其官方密钥签名，本 fork
+  若以自有密钥发布则证书不同；跨来源安装通常需要先卸载再安装。
+- 本 fork 的构建若未配置签名密钥则为 debug 签名（仅适合自行测试）；正式分发
+  请自行以自有 keystore 签名，并用 `apksigner verify --print-certs <apk>` 核验。
 
 **版本规则**：`versionCode` = git 提交数（`app/build.gradle.kts` 的 `gitCommitCount`，
 无 git 环境兜底为 1，且带 43 的下限地板——保证历次交付版本号单调递增、老设备可覆盖升级）；
 `versionName` 不手写，由 git 标签推导（`git describe --tags --match "v*"` 去掉前导
-`v`）——发布提交上 = `3.2`，标签后的开发构建 = `3.2-1-g<hash>`，无 git/标签回退
+`v`）——发布提交上 = `3.3.0`，标签后的开发构建 = `3.3.0-1-g<hash>`，无 git/标签回退
 `0.0.0-dev`，版本号只有 tag 这一个事实源；
-APK 产物名 `XQDK_<日期>_<versionCode>_<变体>-<构建类型>.apk`。
+APK 产物名 `Lobster_<日期>_<versionCode>_<变体>-<构建类型>.apk`。
 
 ## 文档
 

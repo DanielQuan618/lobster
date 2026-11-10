@@ -1,24 +1,22 @@
-# 稳定版自动构建：v* 语义化版本 tag（如 v3.2）推送触发；只有人工确认的稳定版本才
-# 推送/tag（版本发布纪律），普通开发期提交留在本地，不触发任何 CI。旧制 stable-*
-# 日期 tag 已于 2026-10-31 废弃（历史 tag 保留但不再触发构建），应用内检查更新
-# 双制式兼容（AppUpdateChecker）。
-# 版权物注入：桔库开局库与 ONNX 识别模型不进 git（.gitignore 版权红线），一次性
-# 上传到本仓 Release 的 assets 标签（prerelease，防污染 latest 语义），构建时经
-# gh 下载注入——缺资产时自检步失败提示上传，不产出缺件的残废包。
-# 安全基线（2026-10-31 体检）：所有第三方 action pin 到完整 commit SHA（防上游
-# tag 劫持）；签名密钥经 Secrets 注入真签 release，挂 Release 前有证书指纹门禁。
-name: Build-XQDK
+# 稳定版构建（fork 版）：仅 workflow_dispatch 手动触发（本 fork 默认不在打 tag 时自动出包，
+# 避免无签名密钥时把 debug 签名包装进 Release；需要自动出包可自行恢复 push.tags 触发）。
+# 本 fork 与上游使用同一套构建链，但做了两处 fork 化处理：
+#   ① 版权物（ONNX 模型/桔库）默认不注入——本仓没有上游的 assets 预发布资产时自动跳过，
+#      构建照常进行（运行期自动回退 YOLO / 纯引擎模式）；
+#   ② 签名密钥默认不注入——Secrets 未配置时回退 debug 签名，仅用于编译验证/自用；
+#      正式分发请配置自有密钥 Secrets（ANDROID_KEYSTORE_B64 / ANDROID_STORE_PWD /
+#      ANDROID_KEY_PWD），并可另配 APK_CERT_SHA256 启用证书指纹门禁。
+# 安全基线：所有第三方 action pin 到完整 commit SHA（防上游 tag 劫持）。
+name: Build-Lobster
 
 on:
-  push:
-    tags: ["v*"]
-  workflow_dispatch: {} # 手动补包/重跑：同样注入资产跑单测，只挂 artifact 不动 Release
+  workflow_dispatch: {} # 手动补包：只挂 artifact；若在 tag 上手动运行则附挂同名 Release
 
 permissions:
   contents: write # tag 触发时向 Release 上传产物需要
 
 # 产物名内嵌日期（app/build.gradle.kts 用 SimpleDateFormat 取 JVM 本地时区）：
-# runner 是 UTC，不设 TZ 产物日期会比北京时间早一天（内阁 stable-20261028 首跑实录教训）
+# runner 是 UTC，不设 TZ 产物日期会比北京时间早一天
 env:
   TZ: Asia/Shanghai
 
@@ -40,27 +38,33 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # 版权物注入：ONNX 模型文件名硬编码于 OnnxBoardRecognizer.kt，保持原名直接落
-    # models/；桔库文件名硬编码于 BHDatabase.java（桔库09.09.2023精修库.obk），
-    # assets Release 侧存 ASCII 名规避中文资源名的 URL 编码问题，此处改名落位。
-    # pattern 精确到文件名（防 assets Release 上多余 .onnx 被一并打包）
-    - name: 下载版权物资产注入 assets
+    # 版权物注入（可选）：ONNX 模型文件名硬编码于 OnnxBoardRecognizer.kt，桔库文件名
+    # 硬编码于 BHDatabase.java。若本仓存在名为 assets 的预发布 Release（把版权物作为
+    # assets 上传，不入 git），则下载注入；否则跳过，构建照常（运行期自动回退）。
+    - name: 下载版权物资产注入 assets（可选）
+      continue-on-error: true
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        set +e
+        gh release view assets --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1
+        if [ $? -ne 0 ]; then
+          echo "本仓未配置 assets 预发布资产，跳过注入（构建将回退 YOLO / 纯引擎模式）"
+          exit 0
+        fi
         mkdir -p app/src/main/assets/models app/src/main/assets/databases
         gh release download assets --repo "$GITHUB_REPOSITORY" \
           --pattern "4_v6-0301.onnx" --dir app/src/main/assets/models --clobber
         gh release download assets --repo "$GITHUB_REPOSITORY" \
           --pattern "nano_v3-0319.onnx" --dir app/src/main/assets/models --clobber
         gh release download assets --repo "$GITHUB_REPOSITORY" \
-          --pattern "XQDK-obk.zip" --dir app/src/main/assets/databases --clobber
-        mv app/src/main/assets/databases/XQDK-obk.zip \
+          --pattern "Lobster-obk.zip" --dir app/src/main/assets/databases --clobber
+        mv app/src/main/assets/databases/Lobster-obk.zip \
            "app/src/main/assets/databases/桔库09.09.2023精修库.obk.zip"
 
-    # 资产自检：存在性 + sha256 完整性双验——资产损坏/被篡改时失败提示重传，
-    # 不产出内容必坏的 APK（digest 取自 GitHub API 资产元数据；更新资产时同步更新此表）
-    - name: 资产自检
+    # 资产自检：仅在确实注入资产时校验 sha256 完整性
+    - name: 资产自检（有资产时）
+      if: hashFiles('app/src/main/assets/models/4_v6-0301.onnx') != ''
       run: |
         cd app/src/main/assets
         echo "fbd895d40ab81b41b8188f881866485678b7871775821aa50cfe74004a1dc796  models/4_v6-0301.onnx" | sha256sum -c -
@@ -73,11 +77,10 @@ jobs:
     - name: Accept SDK licenses
       run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null 2>&1 || true
 
-    # 签名密钥注入（2026-10-31 密钥轮换后 CI 真签 release）：密钥 base64 与双密码
-    # 存于仓库 Secrets（ANDROID_KEYSTORE_B64 / ANDROID_STORE_PWD / ANDROID_KEY_PWD）。
-    # 未配置时（fork/克隆）跳过注入，构建自动回退 debug 签名——tag 构建会被下方
-    # 指纹门禁拦截，debug 签名包不会流出到 Release。
-    - name: 注入 release 签名密钥
+    # 签名密钥注入（可选）：密钥 base64 与双密码存于仓库 Secrets。未配置时跳过注入，
+    # 构建自动回退 debug 签名（保证可构建；正式分发请自行配置自有密钥）。
+    - name: 注入 release 签名密钥（可选）
+      continue-on-error: true
       env:
         KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
         STORE_PWD: ${{ secrets.ANDROID_STORE_PWD }}
@@ -103,21 +106,20 @@ jobs:
         find app/build/outputs/apk -name "*.apk" -exec cp {} dist/ \;
         ls -l dist
 
-    # 签名指纹门禁：tag 构建挂 Release 前逐包核验证书指纹=官方现行密钥（2026-10-31
-    # 轮换后的 cchess.release.2026.jks，指纹与 README 公示一致），防"Secrets 缺失/
-    # 配错 → debug 签名包混入官方 Release"（debug 包不能覆盖安装，还会训练用户
-    # 接受卸载重装，削弱签名防线）。指纹为公开信息，硬编码在此即官方信任锚。
-    - name: 签名指纹门禁
-      if: startsWith(github.ref, 'refs/tags/')
+    # 证书指纹门禁（可选）：配置了 APK_CERT_SHA256 才启用；用于确保 Release 包
+    # 由指定自有密钥签名，防止 debug 签名包混入正式 Release。
+    - name: 签名指纹门禁（配置 APK_CERT_SHA256 时）
+      if: startsWith(github.ref, 'refs/tags/') && env.APK_CERT_SHA256 != ''
+      env:
+        APK_CERT_SHA256: ${{ secrets.APK_CERT_SHA256 }}
       run: |
-        EXPECTED="9ca440393471915a0e6983c53db714133f36f7d327cb487b8a82451d6427721d"
         APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)
         FAIL=0
         for apk in dist/*-release.apk; do
           GOT=$("$APKSIGNER" verify --print-certs "$apk" | awk '/certificate SHA-256 digest:/{print tolower($NF)}')
           echo "$apk -> $GOT"
-          if [ "$GOT" != "$EXPECTED" ]; then
-            echo "::error::签名指纹不符（预期官方现行密钥）：$apk"
+          if [ "$GOT" != "$APK_CERT_SHA256" ]; then
+            echo "::error::签名指纹不符（预期自有密钥）：$apk"
             FAIL=1
           fi
         done
@@ -126,7 +128,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
       with:
-        name: XQDK-apks
+        name: Lobster-apks
         path: dist/*.apk
 
     # tag（v* 语义化版本）触发时挂到同名 Release：没有则创建，已有则补挂资产
@@ -141,7 +143,6 @@ jobs:
           - `*_armv8-dotprod-release.apk`：推荐变体，需 ARMv8.2 dotprod 指令集（骁龙855 / 麒麟990 / 天玑1000 及以上）
           - `*_armv8-release.apk`：兼容变体，供不支持 dotprod 的老机器
 
-          > **签名说明**：自 v3.2 起本页 APK 均由官方签名密钥构建签名（2026-10-31 密钥
-          > 轮换后的新证书 + 发布指纹门禁）——**v3.2 及之后的版本为官方安全版本线**。
-          > **从 v3.1 及更早版本升级需先卸载再安装**（证书已更换，仅此一次，之后恢复覆盖升级）。
-          > 详见 [README](https://github.com/Silva6c/chess-dike#官方获取渠道与签名核验)。
+          > **签名说明**：这是本 fork 的构建产物，**不使用上游项目的签名密钥**；若构建时
+          > 未配置自有签名 Secrets，则为 debug 签名（仅供测试，不能覆盖安装其他来源的包）。
+          > 详见 [README](https://github.com/DanielQuan618/lobster#获取渠道与签名核验)。

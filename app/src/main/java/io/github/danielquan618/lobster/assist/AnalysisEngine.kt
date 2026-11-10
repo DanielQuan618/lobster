@@ -1,0 +1,402 @@
+package io.github.danielquan618.lobster.assist
+
+import android.content.Context
+import android.util.Log
+import io.github.danielquan618.lobster.gamelogic.Piece
+import org.petero.droidfish.engine.EngineConfig
+import org.petero.droidfish.engine.UCIEngine
+import org.petero.droidfish.engine.UCIEngineBase
+import org.petero.droidfish.player.EngineListener
+
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+
+/**
+ * 分析引擎：直接驱动一个独立 pikafish UCI 进程。
+ * 线程模型：单一串行线程执行"初始化/搜索"，保证同一时刻只有一个 position+go 在跑；
+ * 收到 bestmove 或 search 超时后自动空闲，等待下一个局面。
+ */
+class AnalysisEngine(
+    private val context: Context,
+    private val listener: Listener,
+    searchDepth: Int = 20,
+    maxPv: Int = 3,
+    searchMode: SearchMode = SearchMode.DEPTH,
+    searchTimeMs: Int = 3000,
+) {
+    /**
+     * 思考制式（象棋鱼"按深度思考/按时间思考"的连线映射）：
+     * DEPTH = go depth N（算到目标深度自然收束，建议更强，适合复盘研究）；
+     * TIME = go movetime X（固定时长收束，建议回得快且节奏可预期，适合快棋）。
+     */
+    enum class SearchMode { DEPTH, TIME }
+
+    interface Listener {
+        fun onEngineReady()
+        fun onSearchUpdate(result: AnalysisResult)
+        fun onSearchDone(result: AnalysisResult)
+        fun onEngineError(message: String)
+    }
+
+    companion object {
+        /** UCI 行分词正则（预编译）：pikafish 深搜期每秒上百条 info 行，
+         *  split(Regex(...)) 每次现场 Pattern.compile 是纯浪费 */
+        private val WS = Regex("\\s+")
+    }
+
+    private val tag = "AnalysisEngine"
+    private val executor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "analysis-engine").apply { isDaemon = true }
+    }
+    private val engineListener = object : EngineListener {
+        override fun reportEngineError(errMsg: String?) {
+            Log.w(tag, "engine error: $errMsg")
+            listener.onEngineError(errMsg ?: "引擎错误")
+        }
+    }
+
+    @Volatile private var engine: UCIEngine? = null
+    @Volatile private var ready = false
+    @Volatile private var started = false
+
+    @Volatile private var pendingFen: String? = null
+    private val lock = Object()
+
+    /** 搜索深度（与对弈"固定深度"同制式），可热更新，对下一次搜索生效 */
+    @Volatile private var searchDepth: Int = searchDepth.coerceIn(6, 40)
+
+    /** 思考制式（DEPTH/TIME），可热更新，对下一次搜索生效 */
+    @Volatile private var searchMode: SearchMode = searchMode
+
+    /** 时间制搜索时长 ms（500-30000），可热更新，对下一次搜索生效 */
+    @Volatile private var searchTimeMs: Int = searchTimeMs.coerceIn(500, 30000)
+
+    /**
+     * 打断请求标志：request()/flashStop() 只置位，真正的 `stop` 由引擎线程在
+     * searchOnce 读循环的 250ms 间隙自查下发。
+     *
+     * 为什么不跨线程直接写 stop：引擎线程取局→发 `position+go` 之间有窗口（含
+     * setOption 可达秒级），跨线程写的 stop 会先于 go 到达被 UCI 引擎静默忽略
+     * （打断意图丢失，旧局面整搜到底）；且两条命令的相对顺序无任何保证——
+     * 上游 ExternalEngine 亦自注"单写者假设"。stop 改由引擎线程写后写者唯一，
+     * 且必然落在 go 之后（读循环只在搜索开始后运行）。
+     * 清零时机同样在引擎线程取局的锁内（与 flashStop 同锁互斥）：
+     * 空闲期置位的 stop 与取局前窗口内置位的 flash 都在此一并结算，
+     * 不再有"searchOnce 开头无差别清零吃掉刚置位的 flash"的窗口。
+     */
+    @Volatile private var stopRequested = false
+
+    /**
+     * 搜索进行中标志：取局锁内置位（引擎线程）、searchOnce 返回后清零（引擎线程，
+     * 含异常/超时/引擎死亡各出口）。flashStop 据此区分"搜索中可打断"与"空闲
+     * 无可打断"——空闲时置位只会被下一次取局清掉，却让 UI 误报"已打断"。
+     */
+    @Volatile private var searching = false
+
+    /** 引擎 Hash（MB，与搜索设置同口径），可热更新，对下一次搜索生效 */
+    @Volatile private var hashMb: Int = 256
+    @Volatile private var appliedHash = -1
+
+    /**
+     * 变招路数（MultiPV，1-3）：悬浮窗"变招档"按钮热更新。
+     * 1 路 = 单变招，全部算力集中于最佳着（最强）；2-3 路给备选候选但摊薄算力。
+     * 可热更新，对下一次搜索生效（两次搜索之间下发 setOption，见 searchOnce）。
+     */
+    @Volatile private var maxPv: Int = maxPv.coerceIn(1, 3)
+    @Volatile private var appliedMultiPv = -1
+
+    /** 热更新搜索深度（引擎强度档位），对下一次搜索生效 */
+    fun setSearchDepth(depth: Int) {
+        searchDepth = depth.coerceIn(6, 40)
+    }
+
+    /** 热更新思考制式与时间制时长（仅 TIME 制使用 timeMs），对下一次搜索生效 */
+    fun setSearchMode(mode: SearchMode, timeMs: Int = searchTimeMs) {
+        searchMode = mode
+        searchTimeMs = timeMs.coerceIn(500, 30000)
+    }
+
+    /** 热更新变招路数（MultiPV 1-3），对下一次搜索生效 */
+    fun setMultiPv(n: Int) {
+        maxPv = n.coerceIn(1, 3)
+    }
+
+    /** 热更新 Hash（面板"Hash"按钮）：只在引擎空闲的两次搜索之间下发 setoption */
+    fun setHash(mb: Int) {
+        hashMb = mb
+    }
+
+    fun start() {
+        synchronized(lock) {
+            if (started) return
+            started = true
+        }
+        executor.execute {
+            while (!shuttingDown) {
+                if (engine == null || !ready) {
+                    // 启动/自愈（失败自动重试一次；仍失败上报后休眠再整体重试，
+                    // 引擎线程保持存活——原实现 started 闩使失败后永不恢复）
+                    var attempt = 0
+                    while (!ready && !shuttingDown && attempt < 2) {
+                        attempt++
+                        try {
+                            doStart()
+                        } catch (e: Exception) {
+                            Log.e(tag, "engine start failed (attempt $attempt)", e)
+                            if (attempt >= 2) {
+                                listener.onEngineError("引擎启动失败：${e.message ?: "未知原因"}（请重新连线重试）")
+                            }
+                        }
+                        if (!ready && !shuttingDown && attempt < 2) {
+                            runCatching { engine?.shutDown() }
+                            engine = null
+                            try { Thread.sleep(1200) } catch (e: InterruptedException) { return@execute }
+                        }
+                    }
+                    if (!ready) {
+                        try { Thread.sleep(3000) } catch (e: InterruptedException) { return@execute }
+                    }
+                    continue
+                }
+                // 锁内 compare-and-clear：裸读-清零两步之间 request(B) 写入的 B 会被
+                // 置 null 覆盖，新局面请求永久丢失（管线挂起到下一事件）
+                val fetched: String?
+                synchronized(lock) {
+                    val f = pendingFen
+                    pendingFen = null
+                    fetched = f
+                    if (f == null) {
+                        try { lock.wait(300) } catch (e: InterruptedException) { Thread.currentThread().interrupt(); return@execute }
+                    } else {
+                        // 取局即视为本轮搜索开始（与 flashStop 同锁）：清残留打断标志 +
+                        // 置 searching——"取局后 go 前"窗口内的 flashStop 因此有效
+                        //（置位的 stop 会保留到读循环自查下发，不再被开头清零吃掉）
+                        stopRequested = false
+                        searching = true
+                    }
+                }
+                val fen = fetched ?: continue
+                try {
+                    searchOnce(fen)
+                } catch (e: Exception) {
+                    // 搜索中的任何异常（如引擎进程死亡、管道断裂）不得杀死引擎线程：
+                    // 释放引擎对象走自愈重启（原实现异常直接终止线程且 started 闩使
+                    // start() 永远 no-op，UI 永远停在"引擎思考中…"）
+                    Log.e(tag, "searchOnce failed", e)
+                    runCatching { engine?.shutDown() }
+                    engine = null
+                    ready = false
+                    listener.onEngineError("引擎搜索异常，正在自愈…")
+                }
+                // 回到空闲（覆盖正常 bestmove/超时兜底/异常各出口），flashStop 转入 no-op
+                searching = false
+            }
+        }
+    }
+
+    private fun doStart() {
+        val ec = EngineConfig().apply { workDir = context.filesDir.absolutePath }
+        val eng: UCIEngine = UCIEngineBase.getEngine("pikafish", ec, engineListener)
+            ?: throw IllegalStateException("无法创建 pikafish 引擎")
+        engine = eng
+        eng.initialize()
+
+        // pikafish 只在收到 "uci" 后才输出 uciok（标准 UCI 握手）
+        eng.writeLineToEngine("uci")
+
+        // 初始化握手：读 uciok，注册所有 option 行
+        var uciok = false
+        var elapsed = 0L
+        val dl = 200L
+        while (!uciok && elapsed < 10000) {
+            // null = 引擎输出流已关闭（进程退出）：立即失败，不再空等超时
+            val line = eng.readLineFromEngine(dl.toInt()) ?: throw IllegalStateException("引擎进程意外退出")
+            elapsed += dl
+            if (line.isEmpty()) continue
+            val tokens = line.trim().split(WS)
+            when {
+                tokens[0] == "uciok" -> uciok = true
+                tokens[0] == "id" || tokens[0] == "option" -> eng.registerOption(tokens.toTypedArray())
+            }
+        }
+        if (!uciok) throw IllegalStateException("引擎握手超时（uciok），多为 CPU/兼容性问题")
+
+        // uciok 后必须调用 initConfig：ExternalEngine 的启动看门狗据此认为
+        // UCI 握手完成，否则会在 10 秒后误报 "UCI protocol error"
+        eng.initConfig(ec)
+
+        // 配置：权重/线程/Hash/多路PV（配置热更新口径）
+        eng.setOption("EvalFile", "libpikafish.nnue.so")
+        // 线程数 = 核数一半（Cabinet 电脑端 autoThreads 同口径，UCI 官方建议
+        // "最大值减 1~2"）：此前全核深搜与 ONNX 4 线程识别并发时 CPU 满载温控
+        // 降频，识别与搜索双双变慢；留一半核给识别与系统，nps 损失远小于温控收益
+        eng.setOption("Threads", maxOf(2, Runtime.getRuntime().availableProcessors() / 2))
+        eng.setOption("Hash", hashMb)
+        eng.setOption("MultiPV", maxPv)
+        appliedHash = hashMb
+        appliedMultiPv = maxPv
+
+        // 新对局标记 + 就绪握手（显式发送 isready，引擎才会回复 readyok）
+        eng.writeLineToEngine("ucinewgame")
+        eng.writeLineToEngine("isready")
+        var readyOk = false
+        elapsed = 0L
+        while (!readyOk && elapsed < 15000) {
+            val line = eng.readLineFromEngine(dl.toInt()) ?: throw IllegalStateException("引擎进程意外退出")
+            elapsed += dl
+            if (line.trim() == "readyok") readyOk = true
+        }
+        if (!readyOk) throw IllegalStateException("引擎就绪握手失败（readyok）")
+        ready = true
+        Log.i(tag, "analysis engine ready")
+        listener.onEngineReady()
+        // 搜索循环已上移至 start() 的常驻任务：本方法只负责"启动到就绪"，
+        // 搜索异常/引擎死亡后由外层循环走自愈重启，不再依赖 started 闩
+    }
+
+    @Volatile private var shuttingDown = false
+
+    /** 阻塞搜索一局局面直到 bestmove 或超时。支持外部 fetch 新局面（stop）。 */
+    private fun searchOnce(fen: String) {
+        val eng = engine ?: return
+        val lines = LinkedHashMap<Int, MutableAnalysisLine>()
+        // 打断标志的清零已上移至 start() 取局锁内（与 flashStop 同锁，见 stopRequested
+        // 注释）——此处不再清，防"取局后 go 前"窗口内置位的 flash 被无差别吃掉
+        // Hash / MultiPV 档位变更：仅在两次搜索之间下发（UCI 规范不建议搜索中 setoption；
+        // MultiPV 变更会清搜索树，搜索中下发会毁掉当前分析的连续性）
+        if (appliedHash != hashMb) {
+            eng.setOption("Hash", hashMb)
+            appliedHash = hashMb
+        }
+        if (appliedMultiPv != maxPv) {
+            eng.setOption("MultiPV", maxPv)
+            appliedMultiPv = maxPv
+        }
+        // 走子方视角（红=非 b）整次搜索固定：提前一次算好，不在每条 info 行的
+        // 结果构造里重复 split（pikafish 深搜期间每秒几十条 info，高频路径省分配）
+        val redGo = try { fen.split(" ")[1] != "b" } catch (e: Exception) { true }
+        eng.writeLineToEngine("position fen $fen")
+        // 思考制式：深度制算到目标深度自然收束（简单局面秒出，建议更强）；
+        // 时间制固定时长收束（节奏可预期，快棋友好）——象棋鱼三制式去掉 infinite（连线无意义）
+        when (searchMode) {
+            SearchMode.DEPTH -> eng.writeLineToEngine("go depth $searchDepth")
+            SearchMode.TIME -> eng.writeLineToEngine("go movetime $searchTimeMs")
+        }
+
+        // 兜底防呆（对弈制式本无超时）：极端情况下 60s 强制收束
+        val deadline = System.currentTimeMillis() + 60000
+        // 本次搜索是否被 stop 打断（读循环消费打断标志时置位）：调用方据此区分
+        // "完整搜索结果"与"中断浅结果"（预判缓存只收前者）
+        var stopped = false
+        // bestmove 行标志结束；或因新周期 stop 导致 bestmove 立即返回
+        while (System.currentTimeMillis() < deadline) {
+            // 打断自查：request/flashStop 只置标志，stop 由本（引擎）线程在下发——
+            // 必然落在 go 之后，规避跨线程写与"非搜索期 stop 被忽略"两个竞态
+            if (stopRequested) {
+                stopRequested = false
+                stopped = true
+                eng.writeLineToEngine("stop")
+            }
+            // null = 引擎输出流已关闭（进程退出/关停）：置引擎失效走自愈重启，
+            // 静默 return 会让 ready/engine 保持原状，外层循环永不自愈
+            val line = eng.readLineFromEngine(250) ?: run {
+                ready = false
+                engine = null
+                return
+            }
+            val tokens = line.trim().split(WS)
+            if (tokens.isEmpty()) continue
+            if (tokens[0] == "info") {
+                // 引擎自述行（如 NNUE 加载信息）转发到 logcat，便于远程诊断棋力问题
+                if (tokens.contains("string")) Log.i(tag, "engine: ${line.trim()}")
+                parseInfo(tokens)?.let { ml ->
+                    lines[ml.multiPv] = ml
+                    val res = AnalysisResult(fen, redGo, null, lines.values.sortedBy { it.multiPv }.map {
+                        it.toAnalysisLine(redGo)
+                    })
+                    listener.onSearchUpdate(res)
+                }
+            } else if (tokens[0] == "bestmove") {
+                val bm = if (tokens.size > 1) tokens[1] else null
+                val res = AnalysisResult(fen, redGo, bm,
+                    lines.values.sortedBy { it.multiPv }.map { it.toAnalysisLine(redGo) },
+                    interrupted = stopped)
+                listener.onSearchDone(res)
+                return
+            }
+        }
+        // 超时未收 bestmove：发给 stop 再等一次
+        eng.writeLineToEngine("stop")
+        val dl2 = System.currentTimeMillis() + 1500
+        while (System.currentTimeMillis() < dl2) {
+            val line = eng.readLineFromEngine(250) ?: break
+            val tokens = line.trim().split(WS)
+            if (tokens.isEmpty()) continue
+            if (tokens[0] == "bestmove") {
+                val bm = if (tokens.size > 1) tokens[1] else null
+                listener.onSearchDone(AnalysisResult(fen, redGo, bm,
+                    lines.values.sortedBy { it.multiPv }.map { it.toAnalysisLine(redGo) },
+                    interrupted = stopped))
+                return
+            }
+        }
+        // 超时兜底仍未收 bestmove：引擎管线已失步——残留 info 行会在下一次搜索中
+        // 以新 fen 身份上屏、旧 bestmove 会让新搜索假结束。释放引擎走自愈重启，
+        // 丢弃整个管线状态，保证下一次搜索从干净的 position/go 对开始
+        runCatching { eng.shutDown() }
+        engine = null
+        ready = false
+        // interrupted=true：这不是完整搜索（管线失步），调用方不得缓存/定着
+        listener.onSearchDone(AnalysisResult(fen, redGo, null,
+            lines.values.sortedBy { it.multiPv }.map { it.toAnalysisLine(redGo) },
+            interrupted = true))
+    }
+
+    // parseInfo / MutableAnalysisLine 已抽至 AnalysisModels.kt（纯 JVM，单测
+    // AnalysisParseTest 直测；抽取为纯移动，逻辑零改动）
+
+    /**
+     * 请求分析新局面。若引擎正忙于旧局面，置打断标志由引擎线程在搜索读循环间隙
+     * 自查下发 stop（旧搜索的 bestmove 会很快返回并被调用方按 FEN 比对丢弃）。
+     * 调用线程任意。
+     */
+    fun request(fen: String) {
+        synchronized(lock) {
+            pendingFen = fen
+            stopRequested = true
+            lock.notifyAll()
+        }
+    }
+
+    /**
+     * 闪电出着（象棋鱼 stopSearchNow 的连线映射）：打断当前搜索，让 bestmove
+     * 立即返回并按正常路径 onSearchDone 采纳当前最优——与 [request] 的打断不同，
+     * 这里不换局面，本次 bestmove 是有效结果，调用方照常上屏。
+     * 仅在引擎已就绪且没有排队的新局面时有效（有新局面排队时闪了也会被新搜索覆盖）。
+     * stop 同样由引擎线程自查下发（见 [stopRequested] 注释），调用线程任意。
+     * @return 是否成功置位打断（false = 引擎未就绪或已有新局面排队，本次为 no-op）
+     */
+    fun flashStop(): Boolean {
+        if (engine == null || !ready) return false
+        synchronized(lock) {
+            // 仅"搜索中且无新局面排队"可闪：空闲（结果早已上屏）或已有新局面排队
+            //（闪了也会被新搜索覆盖）都返回 false，调用方如实提示，不再误报"已打断"
+            if (pendingFen != null || !searching) return false
+            stopRequested = true
+            return true
+        }
+    }
+
+    fun shutdown() {
+        shuttingDown = true
+        ready = false
+        synchronized(lock) { lock.notifyAll() }
+        try {
+            engine?.shutDown()
+        } catch (e: Exception) {
+            Log.w(tag, "shutDown failed", e)
+        }
+        engine = null
+        executor.shutdownNow()
+    }
+}

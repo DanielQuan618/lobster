@@ -1,13 +1,16 @@
 # 设计边界（Design Boundaries）
 
-> 本文件声明象棋迪克（chess-dike）的**客观能力边界**：它是什么、不是什么、
+> 本文件声明 **lobster（虾搞）** 的**客观能力边界**：它是什么、不是什么、
 > 如何自行验证。边界由代码的实际能力决定，不由本文件的声明决定——每条
 > 结论都给出可独立核对的证据入口（源码路径 / 文档 / 构建配置），欢迎按
 > 第 8 节自行审计。
+>
+> 来源说明：本项目是上游 [Silva6c/chess-dike](https://github.com/Silva6c/chess-dike)
+> （GPL-3.0）的二次开发 fork，代码对齐上游 v3.3；本文件描述的是本 fork 的实际行为。
 
 ## 1. 一句话定位
 
-象棋迪克 = 手机端全离线单机的象棋学习辅助：**本地**录屏识别棋盘 + 本地
+lobster（虾搞）= 手机端全离线单机的象棋学习辅助：**本地**录屏识别棋盘 + 本地
 皮卡鱼引擎分析 + 悬浮窗建议。**软件止于"建议"**：分析结果只以悬浮窗呈现
 给人眼，走子永远由使用者手动完成——从设计上不存在"识别 → 操作"的自动化
 回路。
@@ -51,10 +54,10 @@
 ## 5. 网络与引擎边界
 
 - **全离线单机**：识别、引擎分析、开局库查询全部在本机完成。本应用
-  **不连接电脑端、没有任何对局平台通信**（与姊妹项目"内阁 Cabinet"的
-  WSS 连线能力无关，不要混淆）。
+  **不连接电脑端、没有任何对局平台通信**（与上游原作者的姊妹项目
+  "内阁 Cabinet"的 WSS 连线能力无关，不要混淆）。
 - 唯一出站请求：连线页**手动**点"检查更新"时查询
-  `api.github.com/repos/Silva6c/chess-dike/releases`（3 秒超时，只查
+  `api.github.com/repos/DanielQuan618/lobster/releases`（3 秒超时，只查
   版本号不下载任何文件；失败静默提示）。无自动检查、无遥测、无统计
   上报、无云库查询。
 - 引擎为随包分发的皮卡鱼（Pikafish，GPL-3.0，预编译 `.so` 于
@@ -78,10 +81,10 @@
 - 后台静默录屏、与功能无关的敏感权限
 - 为"改成自动走子 / 绕过检测"提供指导（贡献与 Issue 治理同理）
 
-在 GPL-3.0 下 fork 与修改版合法存在，但它们**不是本项目官方发布物**，
-其内容不代表本项目。官方发布物仅经本仓 GitHub Releases 分发，以
-[README](README.md)「官方获取渠道与签名核验」所列证书指纹为准（v3.2
-起的现行指纹；v3.1 及更早的旧签名包因密钥历史泄露一律不要信任）。
+在 GPL-3.0 下 fork 与修改版合法存在，但它们**不是**本 fork 的官方发布物，
+其内容不代表本项目。本 fork 的发布物仅经本仓 GitHub Releases 分发；上游
+原项目 [Silva6c/chess-dike](https://github.com/Silva6c/chess-dike) 是另一
+发布主体，两边的安装包与签名证书互不通用。
 
 ## 7. 使用边界（授权前提）
 
@@ -103,14 +106,16 @@
 3. **审网络面**：全源码仅 `AppUpdateChecker.kt` 一处 HTTP 客户端
    （HttpURLConnection → api.github.com），无 OkHttp/WebSocket/云库。
 4. **审输出接口**：`exported` 组件仅主入口 Activity（Manifest 逐个数）；
-   悬浮窗实现位于 `app/src/main/java/com/xqdk/chess/assist/`
+   悬浮窗实现位于 `app/src/main/java/io/github/danielquan618/lobster/assist/`
    （ScreenAssistService.kt + ui/ 视图，建议展示，无对外动作）。
 5. **验引擎完整性**：[THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)
    §7 的皮卡鱼预编译 `.so` SHA-256 基线逐文件核对。
-6. **验签名**：v3.2 起的证书指纹与核验命令见
-   [README](README.md)「官方获取渠道与签名核验」。
-7. **查构建**：GitHub Actions（android.yml / codeql.yml）公开可查，
-   Release 挂包前有签名指纹门禁。
+6. **验签名**：本仓库不分发签名密钥（`*.jks` 已忽略）。自行构建时若未配置
+   密钥则回退 debug 签名（仅供测试）；正式发布请以自有 keystore 签名，并用
+   `apksigner verify --print-certs <apk>` 核验——**不要用上游项目的证书
+   指纹核验本 fork 的安装包**。
+7. **查构建**：GitHub Actions（android.yml / codeql.yml）公开可查；本 fork
+   的 Release 挂包前，若配置了签名 Secrets 会做证书指纹门禁。
 
 ## 9. 版本边界留痕
 

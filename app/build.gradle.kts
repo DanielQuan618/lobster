@@ -42,7 +42,7 @@ rootProject.file("local.properties").takeIf { it.exists() }
     ?.inputStream()?.use { keystoreProps.load(it) }
 
 android {
-    namespace = "com.xqdk.chess"
+    namespace = "io.github.danielquan618.lobster"
     compileSdk = 34
     ndkVersion = libs.versions.ndk.get()
 
@@ -57,7 +57,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.xqdk.chess"
+        applicationId = "io.github.danielquan618.lobster"
         minSdk = 26
         targetSdk = 33
         // versionCode 地板 43（2026-10-29 稳定版压平拍板）：公开仓压成「已有 23 笔 +
@@ -174,7 +174,7 @@ android {
                 val date = SimpleDateFormat("yyyyMMdd").format(Date())
                 // 产物名显式用 flavorName-构建类型 拼接（如 armv8-dotprod-release），
                 // 不依赖 AGP 变体名——flavor 去尾横杠后变体名会变驼峰拼接（armv8-dotprodRelease）
-                val filename = "XQDK_${date}_${versionCode}_${flavorName}-${buildType.name}.apk"
+                val filename = "Lobster_${date}_${versionCode}_${flavorName}-${buildType.name}.apk"
                 output.outputFileName = filename
             }
         }

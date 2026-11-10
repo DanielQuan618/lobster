@@ -1,7 +1,11 @@
 # 第三方组件与许可义务清单（THIRD-PARTY NOTICES）
 
-象棋迪克（XQDK）包含大量来自第三方开源项目的代码与资产。本清单按"复制即交付"
+lobster（虾搞）包含大量来自第三方开源项目的代码与资产。本清单按"复制即交付"
 的许可义务逐项列明来源、许可与分发形态；个别组件的许可以官方仓库当前标注为准。
+
+> 来源说明：本项目是 [Silva6c/chess-dike](https://github.com/Silva6c/chess-dike)
+> （GPL-3.0）的二次开发 fork（对齐上游 v3.3），上游作者为 Silva6c；上游项目的
+> 著作权与 GPL 许可依原样保留。本 fork 的品牌名与上游无关。
 
 ## 1. GPL 义务主体（随仓库分发的衍生代码与资产）
 
@@ -10,12 +14,13 @@
 | DroidFish 引擎框架基座 | https://github.com/peterosterlund2/droidfish | GPL-3.0 | `org.petero.droidfish` 引擎链路与 gamelogic 棋规为衍生代码，**整体以 GPL-3.0 发布**（仓库根 LICENSE）；对外分发 APK 时需提供对应源码 |
 | Pikafish 引擎 + NNUE 权重 | https://github.com/official-pikafish/Pikafish | GPL-3.0 | `app/src/main/pikafish/` 预编译二进制随仓库分发 |
 | YOLO 棋子检测权重 | https://github.com/Vincentzyx/VinXiangQi | GPL-3.0 | `assets/yolov5n_xq_fp16.tflite` 随仓库分发 |
+| 上游项目 chess-dike（本 fork 的代码来源） | https://github.com/Silva6c/chess-dike | GPL-3.0 | 本 fork 由其衍生并修改；原项目版权归原作者 Silva6c，依 GPL-3.0 保留 |
 
 ## 2. 二次开发基座与参考实现
 
 | 组件 | 来源 | 说明 |
 |---|---|---|
-| 象棋鱼 chinese-chess-android | https://github.com/zfdang/chinese-chess-android | 本项目在其基础上二次开发（界面与棋规基座来源；对弈打谱功能已裁撤，仅存历史渊源） |
+| 象棋鱼 chinese-chess-android | https://github.com/zfdang/chinese-chess-android | 上游项目曾在其基础上二次开发（界面与棋规基座来源；对弈打谱功能已在上游 v3.0 裁撤，仅存历史渊源） |
 | ONNX 两步式识别模型与算法 | https://huggingface.co/spaces/yolo12138/Chinese_Chess_Recognition | RTMPose 角点 + Swin 分类；模型不随仓库分发（见 `assets/models/README.md`，自行放置，缺失时回退 YOLO） |
 | chinese-chess-helper | https://github.com/Shirakawa-Kotone/chinese-chess-helper | 两步式识别的工程实现参考（OnnxRecognizer 原实现） |
 
@@ -44,8 +49,9 @@
 
 ## 6. 义务摘要
 
-- 本仓库衍生自 GPL-3.0 项目（DroidFish）且直接包含其衍生代码，故**整体以 GPL-3.0
-  发布**；对外分发 APK（含修改版）时须提供完整对应源码并保留版权声明。
+- 本仓库衍生自 GPL-3.0 项目（DroidFish 与上游 chess-dike）且直接包含其衍生代码，
+  故**整体以 GPL-3.0 发布**；对外分发 APK（含修改版）时须提供完整对应源码并
+  保留版权声明。
 - 自行编译自用不触发对外分发义务。
 
 ## 7. 预编译二进制完整性基线

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">象棋迪克</string>
+    <string name="app_name">Lobster</string>
 
     <!-- 主页门面（美学终稿 §3.1）：hero 品牌句唯一出场位，无标点 -->
     <string name="main_hero">看穿这一局</string>

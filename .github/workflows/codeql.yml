@@ -2,12 +2,12 @@
 # badge 显示本工作流成败（扫描发现告警不影响 badge 颜色，告警在 Security 页消化，
 # 不形成门禁）。只扫 java-kotlin：nativeutil.cpp 单文件不值得为它引入 NDK 构建
 # 链的分析复杂度；版权物（ONNX/桔库）不进 git 也不阻塞——构建本身不校验 assets
-# （资产注入是 Build-XQDK 的发布口径，见其"资产自检"步）。
+# （资产注入是 Build-Lobster 的发布口径，见其"资产自检"步）。
 name: CodeQL
 
 on:
   push:
-    branches: [main] # 只跟 main：v* 正式版 tag 已由 Build-XQDK 覆盖，不重复触发
+    branches: [main] # 只跟 main：v* 正式版 tag 已由 Build-Lobster 覆盖，不重复触发
   pull_request:
     branches: [main]
   schedule:
@@ -33,7 +33,7 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    # runner 预装 SDK 未必含 compileSdk 34 与钉定的 NDK 25.1，与 Build-XQDK 同款：
+    # runner 预装 SDK 未必含 compileSdk 34 与钉定的 NDK 25.1，与 Build-Lobster 同款：
     # 先接受 license 让 gradle/sdkmanager 自动补装（CodeQL autobuild 探测 Gradle
     # 后执行构建，环境要求与 android.yml 完全一致）
     - name: Accept SDK licenses

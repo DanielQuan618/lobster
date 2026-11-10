@@ -5,7 +5,7 @@ build/
 # 本机 APK 交付目录（一键门禁把最新产物复制到仓库根 apk/，永不入库）
 /apk/
 
-# Local configuration file (sdk path, etc)
+# Local configuration file (sdk path, signing passwords)
 local.properties
 
 # Log/OS Files
@@ -17,8 +17,6 @@ captures/
 .cxx/
 output.json
 
-tinypinyin/bin/
-
 # IntelliJ
 *.iml
 .idea/
@@ -26,7 +24,7 @@ misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml
 
-# Keystore files（2026-10-28 出库：签名密钥不再随仓库分发，密码在 local.properties）
+# Keystore files（签名密钥不随仓库分发，密码在 local.properties）
 *.jks
 *.keystore
 
@@ -42,63 +40,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-
 # ==== 版权物：仅保留在本地工作区，不随 git 仓库分发 ====
-# 桔库开局库（第三方版权内容；缺失时对弈/连线自动降级为纯引擎模式）
+# 桔库开局库（第三方版权内容；缺失时连线自动降级为纯引擎模式）
 app/src/main/assets/databases/
-# 内置棋谱书（第三方版权内容；打谱页可自行导入 .xqf/.pgn）
-app/src/main/assets/XQF/**
-!app/src/main/assets/XQF/README.txt
 
-# ==== 与上游同步的"不入公开仓库"规则 ====
 # ONNX 识别模型（体积大不入库；使用前自行放置，见 assets/models/README.md）
 app/src/main/assets/models/*.onnx
-
-# 任务书（内部 prompt 文件）不入公开仓库
-docs/*prompt.md
-
-# 工程交接文档（内部工作文件）不入公开仓库；本地保留维护
-docs/engineer-handoff.md
-
-# 设计文档与视觉稿（内部工作文件，拍板前不入库；定稿后若转为用户面文档再调整边界）
-docs/设计-*
-
-# ZCode 会话目录（计划文件等 AI 工具产物，绝不入公开仓库）
-.zcode/
-
-# 本地备份目录（G 盘删除前的完整备份），绝不入公开仓库
-G-backup/
-
-# 象棋鱼上游参考克隆（zfdang/chinese-chess-fish-android，嵌套 git 仓），仅本机参考
-chess-fish/
-
-# 本文档（内部推送规程）不入公开仓库
-docs/推送与维护规程.md
-
-# 项目级 agent 指令（本机会话规则）不入公开仓库
-/AGENTS.md
-
-# 活页账本（本机状态文件，与 AGENTS.md 同为隐私）不入公开仓库
-/当前状态.md
-
-# 法律应对预案与项目哲学（本机治理文件，2026-11-02，与 AGENTS.md 同待遇）
-/法律应对预案.md
-/项目哲学.md
-
-# ==== 内部工作资料与遗留实验材料（2026-10-28 隐私边界：公开仓只保留用户面内容）====
-# 旧开发笔记与截图、Python 实验工程（第三方 cchess 副本）、第三方棋谱格式样例
-/一些资料/
-/XQFParser/
-/棋谱/
-# 未被引用的标志图与设计源文件
-/chessfish.png
-/chessfish.psd
-# 上游遗留 Pages 站点（CNAME 指向上游域名，本镜像无站点；app 内置帮助走 assets）
-/docs/CNAME
-/docs/index.html
-/docs/help.html
-/docs/release.html
-/docs/download.php
-/docs/stylesheets/
-/docs/images/
-/docs/apk/

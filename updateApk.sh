@@ -13,7 +13,7 @@ echo "[2/3] assemble release APKs (armv8 + armv8-dotprod)"
 
 echo "[3/3] copy APKs to repo-root apk/ (delivery dir)"
 mkdir -p apk
-rm -f apk/XQDK_*.apk
+rm -f apk/Lobster_*.apk
 cp app/build/outputs/apk/armv8/release/*.apk apk/
 cp app/build/outputs/apk/armv8-dotprod/release/*.apk apk/
-ls -l apk/XQDK_*.apk
+ls -l apk/Lobster_*.apk

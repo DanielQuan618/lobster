@@ -158,7 +158,7 @@
         </LinearLayout>
     </LinearLayout>
 
-    <com.xqdk.chess.assist.ui.OverlayChessView
+    <io.github.danielquan618.lobster.assist.ui.OverlayChessView
         android:id="@+id/overlay_chess"
         android:layout_width="171dp"
         android:layout_height="185dp"

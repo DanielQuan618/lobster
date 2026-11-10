@@ -27,8 +27,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.channels.FileChannel;
 
-import com.xqdk.chess.ChessApp;
-import com.xqdk.chess.R;
+import io.github.danielquan618.lobster.ChessApp;
+import io.github.danielquan618.lobster.R;
 
 import org.petero.droidfish.player.EngineListener;
 import org.petero.droidfish.utils.LocalPipe;
@@ -164,6 +164,10 @@ public class ExternalEngine extends UCIEngineBase {
             });
             stdErrThread.start();
         } catch (IOException | SecurityException ex) {
+            // 启动失败：复位存活标记（否则后续 initialize 不会再试），并上报给界面
+            markProcessStartFailed();
+            startedOk = false;
+            isRunning = false;
             listener.reportEngineError(ex.getMessage());
             Log.d("ExternalEngine", "Failed to start engine", ex);
         }
